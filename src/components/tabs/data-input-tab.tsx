@@ -53,29 +53,32 @@ export function DataInputTab() {
         const ndFileContent = await ndFile.text();
         const parsedData = await parseNDFile({ ndFileContent });
 
-        // For now, we only support the first stage position
-        const firstStage = parsedData.stagePositions[0];
-        if(!firstStage) {
-            throw new Error('No stage positions found in .nd file.');
+        if (!parsedData.stagePositions || parsedData.stagePositions.length === 0) {
+          throw new Error('No stage positions found in .nd file.');
         }
-
-        const stageImages = firstStage.images;
 
         // Create a map of image files by name for quick lookup
         const imageFileMap = new Map(imageFiles.map(f => [f.name, f]));
         
         const filesForDataset: File[] = [];
-        stageImages.forEach(imgInfo => {
+        
+        // Process all stage positions and collect all unique images
+        const foundImageFilenames = new Set<string>();
+
+        parsedData.stagePositions.forEach(stage => {
+          stage.images.forEach(imgInfo => {
             const imageFile = imageFileMap.get(imgInfo.filename);
-            if(imageFile) {
+            if(imageFile && !foundImageFilenames.has(imgInfo.filename)) {
                 filesForDataset.push(imageFile);
-            } else {
+                foundImageFilenames.add(imgInfo.filename);
+            } else if (!imageFile) {
                  console.warn(`Image file not found for channel ${imgInfo.channel}: ${imgInfo.filename}`);
             }
+          });
         });
 
+
         if (filesForDataset.length > 0) {
-            // Suggest a dataset name from the ND file, e.g., 'Experiment-1'
             const suggestedName = ndFile.name.replace('.nd', '');
             addDataset(suggestedName, filesForDataset);
             toast({
@@ -95,7 +98,7 @@ export function DataInputTab() {
         console.error("Error parsing .nd file:", error);
         toast({
           title: 'Failed to parse .nd file',
-          description: 'The file might be improperly formatted.',
+          description: (error instanceof Error) ? error.message : 'The file might be improperly formatted.',
           variant: 'destructive',
         });
       } finally {
