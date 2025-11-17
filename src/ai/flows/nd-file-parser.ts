@@ -49,10 +49,11 @@ Analyze the content and extract the structured data from it.
 The file format consists of key-value pairs.
 - "ND_VERSION" indicates the version.
 - "LiveMode" is a boolean.
-- The main data is under "STAGES". It contains a list of stage positions.
-- Each stage position ("Stage X") has a list of image files, one for each channel ("do_channel_X"). The value for "do_channel_X" is the filename. The channel name is defined by "channel_name_X".
+- The main data is under "STAGES", which contains a list of stage positions.
+- Each stage position is defined by a block starting with "StageX", where X is the position index.
+- Inside each stage block, image files are specified with keys like "do_channel_X" and their names with "channel_name_X". The value for "do_channel_X" is the filename.
 
-Your task is to parse the provided .nd file content and return a JSON object that strictly conforms to the NDFileOutput schema. Pay close attention to mapping "channel_name_X" and "do_channel_X" to the corresponding channel and filename for each stage position.
+Your task is to parse the provided .nd file content and return a JSON object that strictly conforms to the NDFileOutput schema. Pay close attention to grouping images by their stage position.
 
 .nd File Content:
 \`\`\`
