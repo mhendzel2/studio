@@ -1,7 +1,18 @@
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
+/**
+ * @fileOverview Configuration stub - AI functionality has been replaced with real image processing
+ * 
+ * This file is kept for compatibility but no longer provides AI services.
+ * All analysis functions now use real computational libraries.
+ */
 
-export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.5-flash',
-});
+// Placeholder for any shared utilities needed by the analysis flows
+export const config = {
+  imageProcessing: {
+    maxImageSize: 2048,
+    supportedFormats: ['jpg', 'jpeg', 'png', 'tiff', 'tif']
+  },
+  statistics: {
+    significanceLevel: 0.05,
+    defaultCorrection: 'Benjamini-Hochberg'
+  }
+};

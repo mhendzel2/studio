@@ -9,9 +9,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   // Configure for local development without memory limits
-  experimental: {
-    // Remove any memory restrictions for file uploads
-    isrMemoryCacheSize: 0,
+  turbopack: {
+    // Turbopack configuration (replaces experimental.turbo)
   },
   // Increase body size limits for file uploads
   serverRuntimeConfig: {
