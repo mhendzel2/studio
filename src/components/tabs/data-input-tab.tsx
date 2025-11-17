@@ -7,16 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Upload } from 'lucide-react';
+import { Upload, FolderOpen } from 'lucide-react';
 import Image from 'next/image';
 import { parseNDFile } from '@/ai/flows/nd-file-parser';
 import { Separator } from '../ui/separator';
+import { scanFolderForNDFiles, validateMicroscopyFolder, type NDFolderScanResult } from '@/lib/nd-folder-utils';
 
 export function DataInputTab() {
   const { datasets, addDataset, setActiveTab } = useAppState();
   const [datasetName, setDatasetName] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const [isProcessingFolder, setIsProcessingFolder] = useState(false);
   const { toast } = useToast();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +111,95 @@ export function DataInputTab() {
     }
   };
 
+  const handleFolderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      setIsProcessingFolder(true);
+      try {
+        const fileList = Array.from(event.target.files);
+        
+        // Validate folder contents
+        const validation = validateMicroscopyFolder(fileList);
+        if (!validation.isValid) {
+          toast({
+            title: 'Invalid folder contents',
+            description: validation.issues.join('. '),
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Scan for .nd files and their associated images
+        const ndResults = scanFolderForNDFiles(fileList);
+        
+        if (ndResults.length === 0) {
+          toast({
+            title: 'No .nd files found',
+            description: 'Could not find any .nd files with matching TIFF images in the selected folder.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Process each .nd file found
+        for (const ndResult of ndResults) {
+          try {
+            const ndFileContent = await ndResult.ndFile.text();
+            const parsedData = await parseNDFile({ ndFileContent });
+
+            if (parsedData.stagePositions && parsedData.stagePositions.length > 0) {
+              // Create a map of image files by name for quick lookup
+              const imageFileMap = new Map(ndResult.imageFiles.map(f => [f.name, f]));
+              
+              const filesForDataset: File[] = [];
+              const foundImageFilenames = new Set<string>();
+
+              parsedData.stagePositions.forEach(stage => {
+                stage.images.forEach(imgInfo => {
+                  const imageFile = imageFileMap.get(imgInfo.filename);
+                  if(imageFile && !foundImageFilenames.has(imgInfo.filename)) {
+                      filesForDataset.push(imageFile);
+                      foundImageFilenames.add(imgInfo.filename);
+                  }
+                });
+              });
+
+              if (filesForDataset.length > 0) {
+                addDataset(ndResult.datasetName, filesForDataset);
+                toast({
+                  title: 'Dataset loaded',
+                  description: `${filesForDataset.length} images loaded from "${ndResult.datasetName}".`,
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error processing .nd file ${ndResult.ndFile.name}:`, error);
+            toast({
+              title: `Failed to process ${ndResult.ndFile.name}`,
+              description: (error instanceof Error) ? error.message : 'The file might be improperly formatted.',
+              variant: 'destructive',
+            });
+          }
+        }
+
+        if (ndResults.length > 0) {
+          setActiveTab('segmentation');
+        }
+
+      } catch (error) {
+        console.error("Error processing folder:", error);
+        toast({
+          title: 'Failed to process folder',
+          description: (error instanceof Error) ? error.message : 'An unexpected error occurred.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsProcessingFolder(false);
+        // Reset file input
+        event.target.value = '';
+      }
+    }
+  };
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!datasetName.trim()) {
@@ -145,7 +236,7 @@ export function DataInputTab() {
       <CardHeader>
         <CardTitle>Data Input</CardTitle>
         <CardDescription>
-          Upload your data. You can either upload a folder of images as a dataset, or import a MetaMorph (.nd) file with its associated images.
+          Load your microscopy data. Choose the method that best fits your data organization. For Cellpose 3.0 segmentation and morphometric analysis.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
@@ -172,7 +263,30 @@ export function DataInputTab() {
             <Separator />
 
             <div>
-                 <h3 className="text-lg font-medium mb-2">Option 2: Import from Folder</h3>
+              <h3 className="text-lg font-medium mb-2">Option 2: Load Folder with .nd files</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Select a folder containing .nd files and their associated TIFF images. The app will automatically find and load all datasets.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="nd-folder-upload">Microscopy Data Folder</Label>
+                <Input
+                  id="nd-folder-upload"
+                  type="file"
+                  onChange={handleFolderChange}
+                  disabled={isProcessingFolder}
+                  // @ts-ignore
+                  webkitdirectory="true"
+                  mozdirectory="true"
+                />
+                <p className="text-sm text-muted-foreground">Select a folder containing .nd files and TIFF images.</p>
+              </div>
+              {isProcessingFolder && <p className="text-sm text-primary animate-pulse">Processing folder contents...</p>}
+            </div>
+
+            <Separator />
+
+            <div>
+                 <h3 className="text-lg font-medium mb-2">Option 3: Import from Folder (Images Only)</h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     Images from the same folder will be grouped into a single dataset.
                   </p>

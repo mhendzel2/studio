@@ -8,6 +8,17 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Configure for local development without memory limits
+  experimental: {
+    // Remove any memory restrictions for file uploads
+    isrMemoryCacheSize: 0,
+  },
+  // Increase body size limits for file uploads
+  serverRuntimeConfig: {
+    bodyParser: {
+      sizeLimit: '100mb',
+    },
+  },
   images: {
     remotePatterns: [
       {
